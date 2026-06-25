@@ -1,4 +1,3 @@
-// ════════════════════════════════════════════════
 // MAGAZZINO SUL RETRO (funzione serverless)
 // Gira sui server di Vercel, NON nel browser dell'utente.
 // Nessuna chiave segreta usata qui per ora (Stooq + CoinGecko
@@ -9,7 +8,7 @@ const CRYPTO_MAP = { BTC: "bitcoin", ETH: "ethereum", SOL: "solana", XRP: "rippl
 
 async function fetchStockYahoo(ticker) {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
+    const url = https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d;
     // Nessun proxy necessario: questa chiamata parte dal server (Vercel),
     // non dal browser dell'utente, quindi il blocco CORS non si applica qui.
     const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
@@ -32,8 +31,8 @@ async function fetchStock(ticker) {
 
   // 2° tentativo (riserva): Stooq, solo se Yahoo non ha risposto
   try {
-    const symbol = ticker.includes(".") ? ticker : `${ticker}.US`;
-    const url = `https://stooq.com/q/l/?s=${encodeURIComponent(symbol)}&f=sd2t2ohlc&h&e=csv`;
+    const symbol = ticker.includes(".") ? ticker : ${ticker}.US;
+    const url = https://stooq.com/q/l/?s=${encodeURIComponent(symbol)}&f=sd2t2ohlc&h&e=csv;
     const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return null;
     const text = await r.text();
@@ -55,7 +54,7 @@ async function fetchCryptoBatch(tickers) {
   if (!tickers.length) return out;
   try {
     const ids = tickers.map(t => CRYPTO_MAP[t] || t).join(",");
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
+    const url = https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true;
     const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (!r.ok) return out;
     const d = await r.json();
@@ -76,11 +75,15 @@ export default async function handler(req, res) {
 
   const result = {};
 
-  // Prezzi azioni: chiamate in parallelo, ognuna con un tentativo, nessuna blocca le altre
-  await Promise.all(stockTickers.map(async ticker => {
-    const data = await fetchStock(ticker);
-    if (data) result[ticker] = data;
-  }));
+  // Dividiamo in piccoli gruppi da 8, uno dopo l'altro:
+  // evita che troppe richieste insieme blocchino la raffica
+  for (let i = 0; i < stockTickers.length; i += 8) {
+    const batch = stockTickers.slice(i, i + 8);
+    await Promise.all(batch.map(async ticker => {
+      const data = await fetchStock(ticker);
+      if (data) result[ticker] = data;
+    }));
+  }
 
   // Prezzi crypto: una chiamata unica per tutte
   const cryptoData = await fetchCryptoBatch(cryptoTickers);
@@ -90,4 +93,3 @@ export default async function handler(req, res) {
   // Stooq/CoinGecko vengono interrogati una volta sola, non 10.
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=120");
   res.status(200).json(result);
-}
