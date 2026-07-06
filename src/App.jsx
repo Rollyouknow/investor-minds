@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, ReferenceLine } from "recharts";
-import { NEWS, CONTENT_LAST_UPDATED } from "./data/marketUpdate.js";
+import { NEWS, CONTENT_LAST_UPDATED, EVENTS, countdownText, dataOggiFormattata } from "./data/marketUpdate.js";
 
 /* ════════════════════════════════════════════════
    PREZZI REALI — 15 GIUGNO 2026
@@ -204,55 +204,66 @@ const sGet = async k => { try { const v = localStorage.getItem(k); return v ? JS
 const sSet = async (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
 /* ════════════════════════════════════════════════
-   CLAUDE API
+   CLAUDE API — risposte di riserva (vedi funzione fallback)
+   La chiamata AI live viene aggiunta in futuro con /api/ask
 ════════════════════════════════════════════════ */
-// NOTA: la chiamata diretta a Claude è disattivata per ora.
-// Servirebbe una chiave segreta protetta da una funzione serverless
-// (come abbiamo fatto per i prezzi). Quando vorrai risposte AI vere,
-// aggiungiamo /api/ask allo stesso modo di /api/prices.
-// Per ora l'app usa sempre le risposte di riserva già scritte (funzione fallback più sotto).
 async function askClaude(q, a) {
-  return null; // forza l'uso del fallback, sempre, in modo pulito e prevedibile
-}
-async function askClaude_DISABLED(q, a) {
-  try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        model:"claude-sonnet-4-20250514", max_tokens:900,
-        messages:[{ role:"user", content:`Sei un analista finanziario top. Rispondi in italiano, max 5 frasi concrete e dirette.
-
-CONTESTO 15/6/2026 (lunedì mattina):
-- S&P 500: 7.431 (test 50-day MA 7.230). DOW 51.202. BTC $64.081. Gold $4.238 (+3%). VIX 17.68.
-- SPCX SpaceX: IPO $135 il 12/6, chiude primo giorno $160.95 (+19.2%). ATH $176.52. Nasdaq-100 inclusion fine giugno ($22-27B forced buying). S&P 500 RIFIUTA fast-track (non profittevole: -$8.7B losses).
-- MRVL entra S&P 500 il 22 giugno (7 giorni). Forced buying ~$4B.
-- FOMC 17 giugno: Warsh hawkish, mantiene tassi. PCE 3-year high. Jobs forte.
-- PORTAFOGLIO RAUL: NVDA 1sh@$170(+26%), SNDK 0.2sh@$700(+120%), CRML 24sh@$11.50, NRGV 2sh(SELL). Cash €326.77.
-- WWDC Apple: Ternus CEO, Apple Intelligence 2.0 annunciato. BofA target $380.
-- KKR $138: SpaceX gain realizzato. MSCI include SPCX (annunciato 9/6).
-- Gold: $4.238, giù da $5.200 (feb 2026). Iran ceasefire fragile. JPM target $6.300.
-- Shiller P/E 42.78. Dimon: 'mercati exuberant'. BofA: summer pullback possibile.
-
-DOMANDA RAUL: "${q}"
-RISPOSTA RAUL: "${a}"
-
-Analisi concreta: 1) Implicazione principale per il portafoglio Raul, 2) Azione specifica (asset + prezzo entry + dimensione), 3) Rischio principale.` }]
-      })
-    });
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.content?.[0]?.text || null;
-  } catch { return null; }
+  return null; // usa sempre il fallback: risposte ricche già scritte sotto
 }
 
 function fallback(topic, ans) {
   const a = ans.toLowerCase();
-  if (topic==="SPCX") return "SPCX oggi ~$161. Nasdaq-100 inclusion fine giugno = $22-27B forced buying meccanico. Strategia: entry in fascia $150-162, stop $130 (IPO price), target $200-210. Timing critico: entrare prima dell'annuncio Nasdaq-100, uscire dopo l'inclusion. Non è un investimento a lungo termine (perde $8.7B): è un trade sull'evento.";
-  if (topic==="MRVL") return "MRVL $198 con S&P 500 inclusion il 22 giugno (7 giorni). Forced buying ~$4B. Entry oggi $193-200, stop $177, target $245. Timeframe: uscire entro il 22-23 giugno (sell the news). La finestra si chiude rapidamente.";
-  if (topic==="FOMC") return "FOMC 17 giugno (dopodomani): Warsh mantiene tassi. Impatto: Gold +2-3% (inflazione strutturale), TLT sotto pressione, growth stocks volatilità. Azione: aumentare IAU/GDX prima del 17/6. Ridurre TLT se hai esposizione.";
-  if (topic==="Portfolio") return "Portafoglio attuale: NVDA +26% (HOLD), SNDK +120% (HOLD con stop $1.380), CRML neutro (HOLD small). NRGV: vendi subito, liberi €10. Cash €326.77: deploy immediato → 7×IAU (~€305) = gold hedge strutturale. Riserva €21 per entry tattica MRVL.";
-  if (topic==="Gold") return "Gold $4.238 = -19% da ATH $5.200 (feb 2026). FOMC hawkish 17/6 = inflazione strutturale = gold sale. JPM target $6.300. IAU entry fascia $42.80-43.80, stop $39.50, target $52 (+21%) e $61 (+42%). GDX per leva 2-3x. Comprare questa settimana prima del FOMC.";
-  return `Su ${topic}: il contesto del 15 giugno 2026 vede tre catalyst imminenti: FOMC 17/6 (hawkish = gold), MRVL S&P 500 22/6 (forced buying), SPCX Nasdaq-100 fine giugno (mega flow). Posizionarsi ORA prima della massa. Priorità: IAU oggi, MRVL oggi, SPCX su pullback.`;
+  const si = ["sì","si","ok","fatto","tengo","comprato","accumulo"].some(w=>a.includes(w));
+  const no = ["no","non","venduto","ridotto","niente","ancora no"].some(w=>a.includes(w));
+
+  if (topic==="SPCX") {
+    const cd = countdownText(EVENTS.spcxNasdaq, "Nasdaq-100 inclusion", "Nasdaq-100 inclusion", "Nasdaq-100 inclusion avvenuta");
+    return si
+      ? `Bene, hai già posizione su SPCX. ${cd} — la finestra di forced-buying ($22-27B meccanici da fondi indicizzati) è il vero catalyst, non i fondamentali (l'azienda perde ancora $8.7B). Mantieni con stop a $130 (prezzo IPO), valuta di vendere parzialmente subito dopo l'inclusione effettiva nell'indice (sell the news classico).`
+      : `Non sei ancora entrato: ${cd}. Se vuoi entrare, fascia ragionevole $150-162, stop netto a $130 (sotto il prezzo IPO = stop loss della tesi). Non è un investimento da tenere a lungo: è un trade sull'evento meccanico, non sui fondamentali.`;
+  }
+
+  if (topic==="MRVL") {
+    const cd = countdownText(EVENTS.mrvlSP500, "Entrata S&P 500", "Entrata S&P 500", "Entrata S&P 500 avvenuta");
+    return si
+      ? `Ottimo, MRVL ${cd}: il forced buying da ~$4B dei fondi indicizzati dovrebbe già essere in corso o concluso. Se l'evento è già passato, valuta di vendere (sell the news) — il catalyst principale si è già consumato.`
+      : `${cd}. Se l'evento è ancora futuro, fascia di entry $193-200, stop $177, target $245. Se l'evento è già passato, il trade ha perso la sua ragione principale: meglio aspettare il prossimo catalyst piuttosto che entrare "in ritardo".`;
+  }
+
+  if (topic==="FOMC") {
+    const cd = countdownText(EVENTS.fomc, "FOMC", "FOMC", "FOMC già avvenuta");
+    return `${cd}. Impatto tipico di un FOMC hawkish (tassi fermi, nessun taglio): Gold tende a salire (inflazione percepita come più persistente), TLT (bond lunghi) sotto pressione, growth stocks più volatili nelle 48h successive. Se l'evento è già passato: guarda come hanno reagito IAU e TLT nei giorni successivi per capire se il mercato ha già "digerito" la decisione o se c'è ancora movimento in corso.`;
+  }
+
+  if (topic==="Portfolio") {
+    return si
+      ? "Bene, hai liberato la liquidità da NRGV. Priorità per il cash disponibile, in ordine: 1) Gold (IAU) come hedge strutturale — non è mai un errore averne una base, 2) una posizione piccola su un evento con catalyst chiaro e data precisa (es. MRVL/SPCX se i tempi sono ancora favorevoli), 3) il resto in riserva per occasioni (es. SNDK se scende sotto stop)."
+      : "Se non hai ancora venduto NRGV: fallo appena puoi, non c'è motivo per tenerla — libera capitale che oggi non lavora per te. Con la liquidità libera, evita di metterla tutta su un solo titolo: dividi tra un hedge (oro) e una piccola posizione tattica con stop chiaro.";
+  }
+
+  if (topic==="Gold") {
+    return si
+      ? "Accumulare oro qui ha senso strutturale: è -19% dal massimo storico di febbraio 2026, e storicamente l'oro fa da contrappeso quando i tassi restano alti più a lungo (scenario FOMC hawkish). Mantieni una view di lungo periodo: l'oro raramente premia chi entra e esce velocemente."
+      : "Se non hai ancora oro in portafoglio, è la lacuna più importante da chiudere: è l'unico asset che storicamente si muove in modo opposto (o indipendente) dalle azioni nei momenti di stress. Anche una posizione piccola (10-15% del portafoglio) cambia molto la resilienza complessiva.";
+  }
+
+  if (topic==="BTC") {
+    return si
+      ? "Bene che tieni traccia delle posizioni crypto. Regola generale: su un asset con questa volatilità, uno stop mentale (un prezzo sotto il quale rivedi la posizione, anche solo riducendola) è più importante del prezzo di entrata. Se non l'hai già fatto, definisci ORA un livello sotto il quale ridurresti l'esposizione, prima che lo decida il panico."
+      : "Se non hai stop impostati su BTC/XRP/SOL, è il primo punto da sistemare: non serve azzeccare il prezzo perfetto, serve avere già deciso PRIMA cosa faresti in caso di un -20% improvviso. Deciderlo a freddo oggi è molto meglio che deciderlo durante un crollo.";
+  }
+
+  if (topic==="SNDK") {
+    return si
+      ? "Tenere tutta la posizione con un gain così ampio è una scelta legittima se la tesi di fondo (storage per l'AI) resta intatta. Ma considera: più un gain è grande, più ha senso avere ALMENO un trailing stop (uno stop che si alza seguendo il prezzo) per proteggere quanto già guadagnato, anche senza vendere nulla oggi."
+      : "Se non hai un trailing stop impostato su una posizione fortemente in gain, è il rischio più grande che stai correndo: non perdere il capitale investito, ma restituire al mercato un gain che avevi già ottenuto. Vale la pena definirlo, anche solo mentalmente, oggi stesso.";
+  }
+
+  if (topic==="Obiettivo") {
+    return "L'obiettivo finale (importo + anni) è quello che decide TUTTO il resto: quanto rischio puoi permetterti, quanto contante tenere fermo, quanto concentrare vs diversificare. Senza un numero e una scadenza, ogni scelta di portafoglio resta un po' arbitraria. Anche una stima approssimativa (es. 'raddoppiare in 10 anni') è già abbastanza per calibrare il piano.";
+  }
+
+  return `Su ${topic}: senza un collegamento diretto a un'IA in tempo reale, questa è una risposta basata su principi generali, non su dati aggiornati al minuto. Per decisioni importanti, verifica sempre i prezzi e le date correnti nella dashboard sopra, che invece SONO live.`;
 }
 
 /* ════════════════════════════════════════════════
@@ -375,7 +386,7 @@ function ScanTab({ live }) {
   return (
     <div>
       <div style={{ background:"rgba(99,102,241,.06)",border:"1px solid rgba(99,102,241,.25)",borderRadius:12,padding:"12px 16px",marginBottom:14 }}>
-        <div style={{ fontSize:12,fontWeight:800,color:"#a5b4fc",marginBottom:6 }}>🔍 Scan di Mercato — 15 Giugno 2026</div>
+        <div style={{ fontSize:12,fontWeight:800,color:"#a5b4fc",marginBottom:6 }}>🔍 Scan di Mercato</div>
         <div style={{ fontSize:11,color:"rgba(255,255,255,.6)",lineHeight:1.6 }}>
           3 catalyst IMMINENTI definiscono questa settimana: <strong style={{color:"#ef4444"}}>FOMC 17/6</strong> (Warsh hawkish → gold up), <strong style={{color:"#fbbf24"}}>MRVL S&P 500 22/6</strong> (forced $4B), <strong style={{color:"#a5b4fc"}}>SPCX Nasdaq-100 fine giugno</strong> ($22-27B meccanico). Posizionarsi ORA prima che la massa si accorga.
         </div>
@@ -597,13 +608,13 @@ function DCATab() {
    Q&A CHAT
 ════════════════════════════════════════════════ */
 const QA_Q = [
-  {id:"q1",e:"🚀",t:"SPCX",q:"SpaceX SPCX $161: sei riuscito ad acquistarla da IBKR? Stai pianificando di entrare su un pullback verso $150-155?"},
-  {id:"q2",e:"📊",t:"MRVL",q:"MRVL $198 con S&P 500 inclusion il 22 giugno. Sei entrato? La finestra si chiude in 7 giorni."},
-  {id:"q3",e:"🏛️",t:"FOMC",q:"FOMC 17 giugno (dopodomani): Warsh mantiene tassi. Come ti posizioni? Stai comprando IAU/GDX prima dell'evento?"},
+  {id:"q1",e:"🚀",t:"SPCX",q:"SpaceX SPCX: sei riuscito ad acquistarla da IBKR? Stai pianificando di entrare su un pullback?"},
+  {id:"q2",e:"📊",t:"MRVL",q:"MRVL con S&P 500 inclusion in arrivo. Sei entrato? La finestra si chiude presto."},
+  {id:"q3",e:"🏛️",t:"FOMC",q:"FOMC: Warsh mantiene tassi. Come ti posizioni? Stai comprando IAU/GDX prima dell'evento?"},
   {id:"q4",e:"💼",t:"Portfolio",q:"Hai già venduto NRGV? E i €326.77 di cash: qual è il piano di deploy questa settimana?"},
-  {id:"q5",e:"🪙",t:"Gold",q:"Gold $4.238, giù da $5.200 (feb 2026). IAU a $43.80 = entry interessante? Quante shares comprare con il cash disponibile?"},
-  {id:"q6",e:"₿",t:"BTC",q:"BTC $64.081. Su Crypto.com hai ancora BTC, XRP, SOL? Come stanno performando? Stop-loss impostati?"},
-  {id:"q7",e:"⚡",t:"SNDK",q:"SNDK $1540 (+120% da $700). Stai tenendo tutta la posizione? Trailing stop a $1.380 impostato?"},
+  {id:"q5",e:"🪙",t:"Gold",q:"Gold giù dal massimo storico di febbraio 2026. IAU = entry interessante? Quante shares comprare con il cash disponibile?"},
+  {id:"q6",e:"₿",t:"BTC",q:"BTC: su Crypto.com hai ancora BTC, XRP, SOL? Come stanno performando? Stop-loss impostati?"},
+  {id:"q7",e:"⚡",t:"SNDK",q:"SNDK (+120% da $700). Stai tenendo tutta la posizione? Trailing stop impostato?"},
   {id:"q8",e:"🎯",t:"Obiettivo",q:"Obiettivo finale del portafoglio: importo e anni? Serve per calibrare il DCA e le scelte di rischio."},
 ];
 
@@ -635,7 +646,7 @@ function QATab() {
     <div style={{ background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.08)",borderRadius:14,overflow:"hidden" }}>
       <div style={{ background:"rgba(255,255,255,.04)",padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,.07)",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
         <div>
-          <div style={{ fontSize:13,fontWeight:700,color:"#fff" }}>🧠 Dialogo AI — 15 Giugno 2026</div>
+          <div style={{ fontSize:13,fontWeight:700,color:"#fff" }}>🧠 Dialogo AI</div>
           <div style={{ fontSize:10,color:"rgba(255,255,255,.35)",marginTop:2 }}>Rispondimi. Ogni risposta personalizza l'analisi con dati reali. · {msgs.length} messaggi</div>
         </div>
         {msgs.length>0&&<button onClick={()=>{setMsgs([]);sSet("qa_v8",[]);}} style={{fontSize:10,color:"rgba(255,255,255,.3)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit"}}>🗑</button>}
@@ -673,6 +684,68 @@ function QATab() {
         <div ref={ref}/>
       </div>
       <style>{`@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}`}</style>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════
+   LUCCHETTO PIN — protegge il Portfolio
+   da chi entra per caso nel sito (è pubblico).
+════════════════════════════════════════════════ */
+function PinGate({ children }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem("pf_unlocked") === "1") setUnlocked(true);
+  }, []);
+
+  const check = async () => {
+    setLoading(true); setError("");
+    try {
+      const r = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setUnlocked(true);
+        sessionStorage.setItem("pf_unlocked", "1"); // resta sbloccato solo per questa visita
+      } else if (d.configurato === false) {
+        setError("PIN non configurato su Vercel. Impostalo in Settings → Environment Variables.");
+      } else {
+        setError("PIN errato. Riprova.");
+      }
+    } catch {
+      setError("Errore di connessione. Riprova.");
+    }
+    setLoading(false);
+  };
+
+  if (unlocked) return children;
+
+  return (
+    <div style={{ background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",borderRadius:14,padding:"40px 24px",textAlign:"center",maxWidth:320,margin:"40px auto" }}>
+      <div style={{ fontSize:32,marginBottom:10 }}>🔒</div>
+      <div style={{ fontSize:14,fontWeight:700,color:"#fff",marginBottom:6 }}>Area Protetta</div>
+      <div style={{ fontSize:11,color:"rgba(255,255,255,.4)",marginBottom:16 }}>Inserisci il PIN per vedere il portafoglio</div>
+      <input
+        type="password"
+        inputMode="numeric"
+        maxLength={4}
+        value={pin}
+        onChange={e => setPin(e.target.value.replace(/\D/g, ""))}
+        onKeyDown={e => e.key === "Enter" && check()}
+        placeholder="••••"
+        style={{ width:"100%",textAlign:"center",fontSize:20,letterSpacing:8,background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.18)",borderRadius:8,padding:"10px",color:"#fff",marginBottom:12,fontFamily:"inherit" }}
+      />
+      <button onClick={check} disabled={loading || pin.length < 4} style={{ width:"100%",padding:"10px",borderRadius:8,border:"1px solid #6366f1",background:"rgba(99,102,241,.25)",color:"#a5b4fc",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"inherit" }}>
+        {loading ? "Verifica…" : "Entra"}
+      </button>
+      {error && <div style={{ fontSize:10,color:"#fca5a5",marginTop:10 }}>{error}</div>}
     </div>
   );
 }
@@ -759,12 +832,12 @@ export default function App() {
           Investor Minds PRO
         </h1>
         <p style={{ color:"rgba(255,255,255,.3)",fontSize:11,margin:"0 0 12px" }}>
-          15 Giugno 2026, 12:34 · SPCX +19% · MRVL S&P 22/6 · FOMC 17/6 · Gold $4.238 · Buffett, Burry, Lynch, Dalio, Druckenmiller
+          Aggiornato al {dataOggiFormattata()} · SPCX · MRVL S&P · FOMC · Buffett, Burry, Lynch, Dalio, Druckenmiller
         </p>
 
         {/* FOMC countdown banner */}
         <div style={{ background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.25)",borderRadius:10,padding:"8px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:"center" }}>
-          <span style={{ fontSize:11,fontWeight:700,color:"#fca5a5" }}>🏛️ FOMC Decision: <strong>17 Giugno</strong> (dopodomani)</span>
+          <span style={{ fontSize:11,fontWeight:700,color:"#fca5a5" }}>🏛️ {countdownText(EVENTS.fomc, "FOMC Decision", "FOMC Decision", "FOMC Decision: avvenuta")}</span>
           <span style={{ fontSize:10,color:"rgba(255,200,200,.6)" }}>Warsh hawkish atteso → Gold up, TLT down → Comprare IAU PRIMA dell'evento</span>
         </div>
 
@@ -794,16 +867,18 @@ export default function App() {
         )}
 
         {tab==="portfolio" && (
+          <PinGate>
           <div style={{ background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",borderRadius:14,padding:18 }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8 }}>
               <div>
                 <div style={{ fontSize:14,fontWeight:800,color:"#fff" }}>💼 Portafoglio IBKR — Raul</div>
-                <div style={{ fontSize:10,color:"rgba(255,255,255,.35)" }}>Prezzi live · P&L aggiornato · 15/6/2026</div>
+                <div style={{ fontSize:10,color:"rgba(255,255,255,.35)" }}>Prezzi live · P&L aggiornato</div>
               </div>
               <a href="https://www.tradingview.com" target="_blank" rel="noopener noreferrer" style={{ fontSize:10,color:"rgba(100,180,255,.7)",background:"rgba(99,150,255,.08)",border:"1px solid rgba(99,150,255,.2)",borderRadius:8,padding:"5px 10px" }}>📊 TradingView ↗</a>
             </div>
             <PortfolioTab live={live}/>
           </div>
+          </PinGate>
         )}
 
         {tab==="dca" && <DCATab/>}
