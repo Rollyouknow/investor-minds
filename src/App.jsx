@@ -760,8 +760,13 @@ export default function App() {
   const [lastUpd, setLastUpd] = useState(null);
   const [ni, setNi] = useState(0);
   const [invTab, setInvTab] = useState("buffett");
+  const [liveNews, setLiveNews] = useState(NEWS);
 
-  useEffect(()=>{ const t=setInterval(()=>setNi(i=>(i+1)%NEWS.length),5000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{
+    fetch("/api/market-brief").then(r=>r.ok?r.json():null)
+      .then(d=>{ if(d?.news?.length) setLiveNews(d.news); }).catch(()=>{});
+  },[]);
+  useEffect(()=>{ const t=setInterval(()=>setNi(i=>(i+1)%liveNews.length),5000); return()=>clearInterval(t); },[liveNews]);
 
   const refresh = useCallback(async()=>{
     setRefreshing(true);
@@ -792,7 +797,7 @@ export default function App() {
       {/* News ticker */}
       <div style={{ background:"rgba(99,102,241,.08)",borderBottom:"1px solid rgba(99,102,241,.2)",padding:"7px 14px",display:"flex",gap:10,alignItems:"center" }}>
         <span style={{ fontSize:9,fontWeight:800,color:"#a5b4fc",letterSpacing:1.5,textTransform:"uppercase",flexShrink:0,background:"rgba(99,102,241,.2)",padding:"2px 7px",borderRadius:4 }}>📰 contenuti del {CONTENT_LAST_UPDATED}</span>
-        <div key={ni} style={{ fontSize:11,color:"rgba(255,255,255,.78)",animation:"slideL .4s ease",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1 }}>{NEWS[ni]}</div>
+        <div key={ni} style={{ fontSize:11,color:"rgba(255,255,255,.78)",animation:"slideL .4s ease",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1 }}>{liveNews[ni]}</div>
         <button onClick={refresh} disabled={refreshing} style={{ flexShrink:0,fontSize:10,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.12)",borderRadius:6,padding:"3px 9px",color:"rgba(255,255,255,.5)",cursor:refreshing?"not-allowed":"pointer",fontFamily:"inherit" }}>{refreshing?"↻…":"↻"}</button>
       </div>
 
